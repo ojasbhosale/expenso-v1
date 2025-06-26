@@ -44,6 +44,8 @@ export const insertCategorySchema = createInsertSchema(categories).omit({
 export const insertExpenseSchema = createInsertSchema(expenses).omit({
   id: true,
   createdAt: true,
+}).extend({
+  amount: z.coerce.string(),
 });
 
 // Login schema
