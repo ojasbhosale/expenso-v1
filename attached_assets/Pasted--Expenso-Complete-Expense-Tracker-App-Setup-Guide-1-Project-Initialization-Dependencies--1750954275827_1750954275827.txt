@@ -1,0 +1,294 @@
+# Expenso - Complete Expense Tracker App Setup Guide
+
+## 1. Project Initialization & Dependencies
+
+### Create Next.js App
+```bash
+npx create-next-app@latest expenso --typescript --tailwind --eslint --app --src-dir --import-alias "@/*"
+cd expenso
+```
+
+### Install Dependencies
+```bash
+# Core dependencies
+npm install @supabase/supabase-js @supabase/ssr
+
+# shadcn/ui setup
+npx shadcn@latest init
+
+# Install required shadcn components
+npx shadcn@latest add button card input label form toast select textarea alert-dialog dropdown-menu badge separator
+
+# Additional utilities
+npm install react-hook-form @hookform/resolvers zod lucide-react date-fns recharts class-variance-authority clsx tailwind-merge
+
+# Development dependencies
+npm install -D @types/node
+```
+
+### Environment Variables
+Create `.env.local` in root directory:
+```env
+# Supabase project URL
+NEXT_PUBLIC_SUPABASE_URL=https://etuhqtugpeqkdbzdlfyh.supabase.co
+
+# Supabase anon public key (safe for frontend)
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV0dWhxdHVncGVxa2RiemRsZnloIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA5NDk4MTEsImV4cCI6MjA2NjUyNTgxMX0.G7IJ4eaEN_mFtKH2SQuGBsvC-gsxHTUh4QLyVss0qtc
+
+# App URL for auth callbacks
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
+```
+
+## 2. Supabase Database Setup
+
+### SQL Schema (Run in Supabase SQL Editor)
+```sql
+-- Enable Row Level Security
+ALTER DATABASE postgres SET "app.jwt_secret" TO 'your-jwt-secret';
+
+-- Create profiles table (extends auth.users)
+CREATE TABLE public.profiles (
+  id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
+  email TEXT,
+  full_name TEXT,
+  avatar_url TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Create categories table
+CREATE TABLE public.categories (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  name TEXT NOT NULL,
+  color TEXT DEFAULT '#3B82F6',
+  icon TEXT DEFAULT 'folder',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Create expenses table
+CREATE TABLE public.expenses (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  category_id UUID REFERENCES public.categories(id) ON DELETE SET NULL,
+  title TEXT NOT NULL,
+  description TEXT,
+  amount DECIMAL(10,2) NOT NULL,
+  date DATE NOT NULL DEFAULT CURRENT_DATE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Enable RLS
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.expenses ENABLE ROW LEVEL SECURITY;
+
+-- Profiles policies
+CREATE POLICY "Users can view own profile" ON public.profiles
+  FOR SELECT USING (auth.uid() = id);
+
+CREATE POLICY "Users can update own profile" ON public.profiles
+  FOR UPDATE USING (auth.uid() = id);
+
+CREATE POLICY "Users can insert own profile" ON public.profiles
+  FOR INSERT WITH CHECK (auth.uid() = id);
+
+-- Categories policies
+CREATE POLICY "Users can view own categories" ON public.categories
+  FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can create own categories" ON public.categories
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own categories" ON public.categories
+  FOR UPDATE USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own categories" ON public.categories
+  FOR DELETE USING (auth.uid() = user_id);
+
+-- Expenses policies
+CREATE POLICY "Users can view own expenses" ON public.expenses
+  FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can create own expenses" ON public.expenses
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own expenses" ON public.expenses
+  FOR UPDATE USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own expenses" ON public.expenses
+  FOR DELETE USING (auth.uid() = user_id);
+
+-- Function to automatically create profile on signup
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.profiles (id, email, full_name)
+  VALUES (NEW.id, NEW.email, NEW.raw_user_meta_data->>'full_name');
+  
+  -- Create default categories
+  INSERT INTO public.categories (user_id, name, color, icon) VALUES
+    (NEW.id, 'Food & Dining', '#EF4444', 'utensils'),
+    (NEW.id, 'Transportation', '#3B82F6', 'car'),
+    (NEW.id, 'Shopping', '#8B5CF6', 'shopping-bag'),
+    (NEW.id, 'Entertainment', '#F59E0B', 'film'),
+    (NEW.id, 'Bills & Utilities', '#10B981', 'receipt'),
+    (NEW.id, 'Healthcare', '#EC4899', 'heart-pulse');
+  
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Trigger for new user signup
+CREATE OR REPLACE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- Function to update updated_at timestamp
+CREATE OR REPLACE FUNCTION public.handle_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Triggers for updated_at
+CREATE TRIGGER handle_profiles_updated_at
+  BEFORE UPDATE ON public.profiles
+  FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
+
+CREATE TRIGGER handle_expenses_updated_at
+  BEFORE UPDATE ON public.expenses
+  FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
+```
+
+### Supabase Auth Configuration
+In your Supabase dashboard:
+1. Go to Authentication > Settings
+2. Set Site URL: `http://localhost:3000`
+3. Add Redirect URLs: `http://localhost:3000/auth/callback`
+4. Enable email confirmations if desired
+
+## 3. Project File Structure
+```
+expenso/
+├── src/
+│   ├── app/
+│   │   ├── auth/
+│   │   │   ├── callback/
+│   │   │   │   └── route.ts
+│   │   │   └── login/
+│   │   │       └── page.tsx
+│   │   ├── dashboard/
+│   │   │   ├── categories/
+│   │   │   │   └── page.tsx
+│   │   │   ├── expenses/
+│   │   │   │   └── page.tsx
+│   │   │   ├── layout.tsx
+│   │   │   └── page.tsx
+│   │   ├── globals.css
+│   │   ├── layout.tsx
+│   │   └── page.tsx
+│   ├── components/
+│   │   ├── ui/ (shadcn components)
+│   │   ├── auth/
+│   │   │   └── auth-form.tsx
+│   │   ├── dashboard/
+│   │   │   ├── dashboard-header.tsx
+│   │   │   ├── expense-form.tsx
+│   │   │   ├── expense-list.tsx
+│   │   │   ├── category-form.tsx
+│   │   │   ├── stats-cards.tsx
+│   │   │   └── recent-expenses.tsx
+│   │   ├── layout/
+│   │   │   ├── sidebar.tsx
+│   │   │   └── navbar.tsx
+│   │   └── providers/
+│   │       └── error-boundary.tsx
+│   ├── lib/
+│   │   ├── supabase/
+│   │   │   ├── client.ts
+│   │   │   ├── server.ts
+│   │   │   └── middleware.ts
+│   │   ├── utils.ts
+│   │   ├── validations.ts
+│   │   └── hooks/
+│   │       ├── use-expenses.ts
+│   │       ├── use-categories.ts
+│   │       └── use-auth.ts
+│   └── types/
+│       └── database.ts
+├── middleware.ts
+└── package.json
+```
+
+## 4. Running the Application
+
+### Development
+```bash
+npm run dev
+```
+
+### Build & Deploy
+```bash
+npm run build
+npm start
+```
+
+## 5. Features Included
+
+### Authentication
+- Email/password login and registration
+- Email confirmation handling
+- Protected routes with middleware
+- Automatic profile creation
+
+### Expense Management
+- Add, edit, delete expenses
+- Categorize expenses
+- Date-based filtering
+- Amount validation
+
+### Categories
+- Default categories on signup
+- Custom category creation
+- Color and icon customization
+- Category-based expense filtering
+
+### Dashboard
+- Expense statistics
+- Recent expenses list
+- Monthly spending overview
+- Category-wise breakdown
+
+### Error Handling
+- Global error boundary
+- Form validation with Zod
+- Toast notifications
+- Loading states
+
+### UI/UX
+- Responsive design
+- Dark/light mode support
+- Clean minimalist interface
+- Smooth animations
+
+## 6. Security Features
+
+- Row Level Security (RLS) enabled
+- User isolation in database
+- Protected API routes
+- Input validation and sanitization
+- CSRF protection via Supabase
+
+## 7. Development Notes
+
+- All forms use react-hook-form with Zod validation
+- Error boundaries prevent app crashes
+- Optimistic updates for better UX
+- TypeScript for type safety
+- Tailwind CSS for styling consistency
+
+This setup provides a complete, production-ready expense tracker application with modern practices and robust error handling.
