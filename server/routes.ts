@@ -220,6 +220,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Add default categories for users who don't have any
+  app.post("/api/categories/default", requireAuth, async (req, res) => {
+    try {
+      const categories = await storage.getCategories(req.session.userId!);
+      if (categories.length === 0) {
+        const defaultCategories = [
+          { name: "Food & Dining", icon: "utensils", color: "#EF4444" },
+          { name: "Transportation", icon: "car", color: "#3B82F6" },
+          { name: "Shopping", icon: "shopping-bag", color: "#8B5CF6" },
+          { name: "Entertainment", icon: "film", color: "#F59E0B" },
+          { name: "Bills & Utilities", icon: "receipt", color: "#10B981" },
+          { name: "Healthcare", icon: "heart-pulse", color: "#EC4899" },
+        ];
+
+        for (const cat of defaultCategories) {
+          await storage.createCategory({
+            userId: req.session.userId!,
+            ...cat
+          });
+        }
+        res.json({ message: "Default categories created" });
+      } else {
+        res.json({ message: "Categories already exist" });
+      }
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

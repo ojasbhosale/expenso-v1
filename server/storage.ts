@@ -83,6 +83,24 @@ export class MemStorage implements IStorage {
       createdAt: new Date(),
     };
     this.users.set(user.id, user);
+
+    // Create default categories for new user
+    const defaultCategories = [
+      { name: "Food & Dining", icon: "utensils", color: "#EF4444" },
+      { name: "Transportation", icon: "car", color: "#3B82F6" },
+      { name: "Shopping", icon: "shopping-bag", color: "#8B5CF6" },
+      { name: "Entertainment", icon: "film", color: "#F59E0B" },
+      { name: "Bills & Utilities", icon: "receipt", color: "#10B981" },
+      { name: "Healthcare", icon: "heart-pulse", color: "#EC4899" },
+    ];
+
+    for (const cat of defaultCategories) {
+      await this.createCategory({
+        userId: user.id,
+        ...cat
+      });
+    }
+
     return user;
   }
 

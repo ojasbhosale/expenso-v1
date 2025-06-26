@@ -33,9 +33,35 @@ export function ExpenseModal({ isOpen, onClose, expense }: ExpenseModalProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: categories } = useQuery({
+  const { data: categoriesData } = useQuery({
     queryKey: ["/api/categories"],
   });
+
+  const categories: any[] = Array.isArray(categoriesData) ? categoriesData : [];
+
+  const createDefaultCategoriesMutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/categories/default"),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/categories"] });
+      toast({
+        title: "Default categories created",
+        description: "You can now select a category for your expense",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error creating categories",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Auto-create default categories if none exist
+  useEffect(() => {
+    if (isOpen && categories.length === 0 && categoriesData !== undefined) {
+      createDefaultCategoriesMutation.mutate();
+    }
+  }, [isOpen, categories.length, categoriesData]);
 
   const form = useForm<ExpenseForm>({
     resolver: zodResolver(expenseSchema),
@@ -181,7 +207,7 @@ export function ExpenseModal({ isOpen, onClose, expense }: ExpenseModalProps) {
                 <SelectValue placeholder="Select a category" />
               </SelectTrigger>
               <SelectContent>
-                {categories?.map((category: any) => (
+                {categories.map((category: any) => (
                   <SelectItem key={category.id} value={category.id.toString()}>
                     {category.name}
                   </SelectItem>
