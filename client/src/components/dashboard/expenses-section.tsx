@@ -14,7 +14,7 @@ export function ExpensesSection() {
   const [editingExpense, setEditingExpense] = useState<any>(null);
   const [filters, setFilters] = useState({
     search: "",
-    categoryId: "",
+    categoryId: "all",
     startDate: "",
     endDate: "",
   });
@@ -22,13 +22,22 @@ export function ExpensesSection() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: expenses, isLoading: expensesLoading } = useQuery({
-    queryKey: ["/api/expenses", filters],
+  const queryParams = new URLSearchParams();
+  if (filters.search) queryParams.append('search', filters.search);
+  if (filters.categoryId && filters.categoryId !== 'all') queryParams.append('categoryId', filters.categoryId);
+  if (filters.startDate) queryParams.append('startDate', filters.startDate);
+  if (filters.endDate) queryParams.append('endDate', filters.endDate);
+  
+  const { data: expensesData, isLoading: expensesLoading } = useQuery({
+    queryKey: ["/api/expenses" + (queryParams.toString() ? `?${queryParams.toString()}` : "")],
   });
 
-  const { data: categories } = useQuery({
+  const { data: categoriesData } = useQuery({
     queryKey: ["/api/categories"],
   });
+
+  const expenses: any[] = Array.isArray(expensesData) ? expensesData : [];
+  const categories: any[] = Array.isArray(categoriesData) ? categoriesData : [];
 
   const deleteExpenseMutation = useMutation({
     mutationFn: (id: number) => apiRequest("DELETE", `/api/expenses/${id}`),
@@ -112,8 +121,8 @@ export function ExpensesSection() {
                 <SelectValue placeholder="All Categories" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Categories</SelectItem>
-                {categories?.map((category: any) => (
+                <SelectItem value="all">All Categories</SelectItem>
+                {Array.isArray(categories) && categories.map((category: any) => (
                   <SelectItem key={category.id} value={category.id.toString()}>
                     {category.name}
                   </SelectItem>
@@ -145,14 +154,14 @@ export function ExpensesSection() {
                 <div key={i} className="h-20 bg-gray-200 animate-pulse rounded-lg" />
               ))}
             </div>
-          ) : expenses?.length === 0 ? (
+          ) : expenses.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-gray-500 text-lg">No expenses found</p>
               <p className="text-gray-400 text-sm mt-1">Add your first expense to get started</p>
             </div>
           ) : (
             <div className="space-y-3">
-              {expenses?.map((expense: any) => (
+              {expenses.map((expense: any) => (
                 <div key={expense.id} className="flex items-center justify-between p-4 border border-gray-100 rounded-lg hover:shadow-md transition-all">
                   <div className="flex items-center space-x-4">
                     <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
