@@ -1,3 +1,5 @@
+// server/storage.ts
+
 import { users, categories, expenses, type User, type InsertUser, type Category, type InsertCategory, type Expense, type InsertExpense, type ExpenseWithCategory, type CategoryWithStats } from "@shared/schema";
 import { hash, compare } from "bcryptjs";
 
