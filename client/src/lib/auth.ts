@@ -1,3 +1,5 @@
+// client/src/lib/auth.ts
+
 import { useQuery } from "@tanstack/react-query";
 import { getQueryFn } from "./queryClient";
 
