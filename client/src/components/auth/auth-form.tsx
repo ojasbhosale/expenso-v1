@@ -25,14 +25,15 @@ export function AuthForm() {
   const [isLogin, setIsLogin] = useState(true);
   const { toast } = useToast();
 
-  const form = useForm<LoginForm | RegisterForm>({
+  const form = useForm<RegisterForm>({
     resolver: zodResolver(isLogin ? loginSchema : registerSchema),
     defaultValues: {
       email: "",
       password: "",
-      ...(isLogin ? {} : { fullName: "" }),
+      fullName: "",
     },
   });
+
 
   const authMutation = useMutation({
     mutationFn: async (data: LoginForm | RegisterForm) => {
@@ -75,7 +76,7 @@ export function AuthForm() {
             <Label htmlFor="fullName">Full Name</Label>
             <Input
               id="fullName"
-              {...form.register("fullName" as keyof (LoginForm | RegisterForm))}
+              {...form.register("fullName")}
               placeholder="Enter your full name"
             />
             {form.formState.errors.fullName && (

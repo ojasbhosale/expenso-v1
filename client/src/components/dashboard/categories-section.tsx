@@ -13,7 +13,17 @@ export function CategoriesSection() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: categories, isLoading } = useQuery({
+  interface Category {
+    id: number;
+    name: string;
+    color: string;
+    icon: string;
+    expenseCount: number;
+    totalAmount: number;
+  }
+
+
+  const { data: categories = [], isLoading } = useQuery<Category[]>({
     queryKey: ["/api/categories"],
   });
 
