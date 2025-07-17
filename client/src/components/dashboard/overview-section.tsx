@@ -5,17 +5,49 @@ import { Button } from "@/components/ui/button";
 import { ArrowDown, Calendar, Tags, BarChart } from "lucide-react";
 
 export function OverviewSection() {
-  const { data: stats, isLoading: statsLoading } = useQuery({
+
+  interface Expense {
+    id: number;
+    title: string;
+    amount: number;
+    date: string;
+    category: {
+      id: number;
+      name: string;
+      color: string;
+      icon: string;
+    } | null;
+  }
+
+  interface Category {
+    id: number;
+    name: string;
+    color: string;
+    icon: string;
+    totalAmount: number;
+    expenseCount: number;
+  }
+
+  interface Stats {
+    totalExpenses: number;
+    weeklyExpenses: number;
+    categoriesCount: number;
+    dailyAverage: number;
+  }
+
+  // ✅ Use typed queries
+  const { data: stats, isLoading: statsLoading } = useQuery<Stats>({
     queryKey: ["/api/stats"],
   });
 
-  const { data: expenses, isLoading: expensesLoading } = useQuery({
+  const { data: expenses = [], isLoading: expensesLoading } = useQuery<Expense[]>({
     queryKey: ["/api/expenses"],
   });
 
-  const { data: categories, isLoading: categoriesLoading } = useQuery({
+  const { data: categories = [], isLoading: categoriesLoading } = useQuery<Category[]>({
     queryKey: ["/api/categories"],
   });
+
 
   const recentExpenses = expenses?.slice(0, 3) || [];
   const topCategories = categories?.slice(0, 4) || [];
